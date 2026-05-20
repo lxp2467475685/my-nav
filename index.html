@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-    <title>自定义导航 · 灵动工作台</title>
+    <title>自定义导航</title>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <style>
         * {
@@ -255,6 +255,25 @@
         .back-home-btn:hover {
             background: #e15554;
             -webkit-transform: scale(0.96);
+            transform: scale(0.96);
+        }
+        /* 排序模式退出按钮 */
+        .exit-sort-btn {
+            background: #ff9800;
+            color: white;
+            border: none;
+            border-radius: 32px;
+            padding: 8px 20px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(255, 152, 0, 0.3);
+            transition: 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .exit-sort-btn:hover {
+            background: #e68900;
             transform: scale(0.96);
         }
         .grid {
@@ -588,7 +607,7 @@
                 <ul class="search-dropdown" id="searchDropdown"></ul>
             </div>
         </div>
-        <div class="tools-group">
+        <div class="tools-group" id="toolsGroup">
             <button id="exportModuleBtn" class="primary">导出</button>
             <button id="importModuleBtn" class="warning">导入</button>
             <button id="addWebsiteBtn" style="background:#e8f0fe;">+网站</button>
@@ -606,12 +625,49 @@
     let currentEngineId = "bing";
     let mainSortable = null;
     let activeContextMenu = null;
+    let sortMode = false;  // 排序模式开关
+    let exitSortBtn = null; // 退出排序按钮
+
     let engineList = [
         { id: "bing", name: "必应", url: "https://www.bing.com/search?q={q}" },
         { id: "google", name: "谷歌", url: "https://www.google.com/search?q={q}" },
         { id: "baidu", name: "百度", url: "https://www.baidu.com/s?wd={q}" },
         { id: "sogou", name: "搜狗", url: "https://www.sogou.com/web?query={q}" }
     ];
+
+    // 退出排序模式
+    function exitSortMode() {
+        sortMode = false;
+        if (exitSortBtn) {
+            exitSortBtn.remove();
+            exitSortBtn = null;
+        }
+        // 重新初始化 Sortable（会销毁当前实例，不再启用拖拽）
+        initSortableForCurrentView();
+        render(); // 重新渲染以恢复点击行为
+    }
+
+    // 进入排序模式
+    function enterSortMode() {
+        if (sortMode) return;
+        sortMode = true;
+        
+        // 添加退出排序按钮到工具栏
+        if (!exitSortBtn) {
+            exitSortBtn = document.createElement('button');
+            exitSortBtn.textContent = '✓ 完成排序';
+            exitSortBtn.className = 'exit-sort-btn';
+            exitSortBtn.onclick = exitSortMode;
+            const toolsGroup = document.getElementById('toolsGroup');
+            toolsGroup.appendChild(exitSortBtn);
+        }
+        
+        // 重新初始化 Sortable，启用拖拽（带长按延迟）
+        initSortableForCurrentView();
+        // 重新渲染，让卡片知道当前在排序模式
+        render();
+    }
+
     function saveEnginesToLocal() {
         localStorage.setItem('nav_search_engines', JSON.stringify(engineList));
     }
@@ -830,22 +886,28 @@
                 { id: genId(), type: 'link', name: '百度网盘', url: 'https://pan.baidu.com' }
             ]
         };
-        const yourLinks = [
+        const orderedLinks = [
             { name: "谷歌", url: "https://www.google.com.hk/?hl=zh-cn" },
+            { name: "美版必应", url: "https://www.bing.com/?mkt=en-US&setlang=en" },
+            { name: "Yandex", url: "https://yandex.com" },
             { name: "OpenAI", url: "https://chat.openai.com/chat" },
+            { name: "apkpure", url: "https://apkpure.com/cn/" },
+            { name: "github", url: "https://github.com/lxp2467475685/my-nav/settings/pages" },
+            { name: "Gitee", url: "https://gitee.com/profile/account/verification" },
             { name: "百度云盘", url: "https://pan.baidu.com/disk/main?from=homeFlow&login_type=weixin&_at_=1778708608604#/index?category=all" },
             { name: "阿里云盘", url: "https://www.alipan.com/sign/in?ad__pass__q__desktopLogin=true&back=https%3A%2F%2Fwww.alipan.com%2Fdrive%2Fhome" },
             { name: "423down", url: "https://www.423down.com/" },
             { name: "果核剥壳", url: "https://www.ghxi.com" },
-            { name: "电子图书馆", url: "https://zh.1lib.sk/" },
+            { name: "火哥分享", url: "https://www.firepx.com" },
+            { name: "Z-Library电子图书馆", url: "https://zh.1lib.sk/" },
             { name: "安娜电子图书馆", url: "https://zh.annas-archive.pk/" },
             { name: "哔哩哔哩", url: "https://www.bilibili.com/?spm_id_from=333.788.0.0" },
             { name: "插件 - Crx搜搜", url: "https://www.crxsoso.com/addon/category/Edge-Extensions" }
         ];
-        const linkItems = yourLinks.map(function(link) {
+        const linkItems = orderedLinks.map(function(link) {
             return { id: genId(), type: 'link', name: link.name, url: link.url };
         });
-        appData.items = [ commonToolsFolder ].concat(linkItems);
+        appData.items = [commonToolsFolder].concat(linkItems);
     }
     function findItemById(id, items) {
         if (!items) items = appData.items;
@@ -1031,6 +1093,8 @@
                 }
                 searchKeyword = "";
                 document.getElementById('searchInput').value = "";
+                // 退出排序模式（路径改变时自动退出）
+                if (sortMode) exitSortMode();
                 render();
             });
         });
@@ -1057,6 +1121,17 @@
         move.innerHTML = '📂 移动到...';
         move.onclick = function() { hideContextMenu(); showMoveDialog(itemId, itemType); };
         menuDiv.appendChild(move);
+        
+        // 新增：排序选项
+        const sortItem = document.createElement('div');
+        sortItem.className = 'context-menu-item';
+        sortItem.innerHTML = '🔀 排序';
+        sortItem.onclick = function() { 
+            hideContextMenu(); 
+            enterSortMode(); 
+        };
+        menuDiv.appendChild(sortItem);
+        
         if (itemType === 'link' && currentPath.length > 0) {
             const backDiv = document.createElement('div');
             backDiv.className = 'context-menu-item';
@@ -1168,19 +1243,35 @@
             const cardId = card.getAttribute('data-id');
             const cardType = card.getAttribute('data-type');
             const url = card.getAttribute('data-url');
-            card.addEventListener('click', function(e) {
-                e.stopPropagation();
-                if (cardType === 'link' && url) {
-                    window.open(url, '_blank');
-                } else if (cardType === 'folder') {
-                    currentPath.push(cardId);
-                    searchKeyword = "";
-                    document.getElementById('searchInput').value = "";
-                    render();
-                }
-            });
+            
+            // 排序模式下，点击事件不再打开链接/文件夹，避免干扰拖拽
+            if (sortMode) {
+                // 排序模式下点击不做任何跳转，只让 Sortable 处理拖拽
+                card.style.cursor = 'grab';
+                card.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    // 排序模式下点击不跳转
+                });
+            } else {
+                card.style.cursor = 'pointer';
+                // 正常模式下的点击事件
+                card.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    if (cardType === 'link' && url) {
+                        window.open(url, '_blank');
+                    } else if (cardType === 'folder') {
+                        currentPath.push(cardId);
+                        searchKeyword = "";
+                        document.getElementById('searchInput').value = "";
+                        render();
+                    }
+                });
+            }
+            
             card.addEventListener('contextmenu', function(e) {
                 e.stopPropagation();
+                // 排序模式下右键菜单不显示（避免干扰）
+                if (sortMode) return;
                 const insideFolder = (currentPath.length > 0);
                 showContextMenu(e, cardId, cardType, insideFolder);
             });
@@ -1191,15 +1282,27 @@
     function initSortableForCurrentView() {
         const gridEl = document.getElementById('cardsGrid');
         if (!gridEl) return;
-        if (mainSortable) mainSortable.destroy();
+        if (mainSortable) {
+            mainSortable.destroy();
+            mainSortable = null;
+        }
+        
+        // 只在排序模式下启用 Sortable
+        if (!sortMode) return;
+        
         const wrappers = Array.prototype.filter.call(gridEl.children, function(ch) {
             return ch.classList && ch.classList.contains('card-wrapper');
         });
         if (wrappers.length === 0) return;
+        
+        // 使用 Sortable 并设置长按延迟 500ms 才触发拖拽
         mainSortable = new Sortable(gridEl, {
             animation: 250,
             ghostClass: 'sortable-drag',
             handle: '.card',
+            delay: 500,           // 长按 500ms 后才触发拖拽
+            delayOnTouchOnly: true, // 仅对触摸屏生效，鼠标拖拽无延迟
+            touchStartThreshold: 2,
             onEnd: function(evt) {
                 const from = evt.from;
                 const to = evt.to;
@@ -1286,6 +1389,7 @@
         currentPath = [];
         searchKeyword = "";
         document.getElementById('searchInput').value = "";
+        if (sortMode) exitSortMode();
         render();
     }
     function bindEvents() {
